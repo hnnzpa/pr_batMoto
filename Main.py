@@ -2,7 +2,9 @@ import vlc
 import time
 import serial
 import ArduinoReader
-
+import HacerFoto as ph
+import HacerVideo as vd
+import threading as th
 # --- CONFIGURACIÓN ---
 VIDEO_PATH = "carreteraLoop.mp4"
 PORT = "COM5"
@@ -18,15 +20,16 @@ def main():
     # player = instance.media_player_new()
     # media = instance.media_new(VIDEO_PATH)
     # player.set_media(media)
-    media_list = instance.media_list_new()
     media = instance.media_new(VIDEO_PATH)
+
+    media_list = instance.media_list_new()
     media_list.add_media(media)
     
-    list_player = instance.media_list_player_new()
     media_player = instance.media_player_new()
+    list_player = instance.media_list_player_new()
 
-    list_player.set_media_list(media_list)
     list_player.set_media_player(media_player)
+    list_player.set_media_list(media_list)
 
     list_player.set_playback_mode(vlc.PlaybackMode.loop)
     list_player.play()
@@ -54,9 +57,17 @@ def main():
 
             if ((velocidad <= 0) and ( velocidad != ultima_velocidad)): # Si la velocidad es 0 y venia de estar en marcha se pausa
                 media_player.pause()
+                foto = ph.hacer_foto(0)
+                print("foto: ", foto)
             else:
                 if ( velocidad != ultima_velocidad): #Si cambio pero la vel no es 0 lo pongo en marcha
                     media_player.play()
+                    if (ultima_velocidad <= 0): #solo quiero grabar si venia de estar en reposo
+                        #th.Thread(target=vd.hacer_video, args=(0), daemon=True).start()
+                        video = vd.hacer_video(0)
+                        print("video: ", video)
+
+
             ultima_velocidad = velocidad
             # state = player.get_state()
             # if state == vlc.State.Ended:
