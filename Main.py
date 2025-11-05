@@ -4,16 +4,38 @@ import serial
 import ArduinoReader
 import HacerFoto as ph
 import HacerVideo as vd
-import threading as th
-# --- CONFIGURACIÓN ---
+from queue import Queue
+import threading
 VIDEO_PATH = "carreteraLoop.mp4"
 PORT = "COM5"
 MIN_SPEED = 0.0
-MAX_SPEED = 15.0
+MAX_SPEED = 5.0
 
 def map_range(x, in_min, in_max, out_min, out_max):
     """Mapea un valor desde un rango a otro."""
     return out_min + (x - in_min) * (out_max - out_min) / (in_max - in_min)
+
+cola = Queue()
+
+def worker_camara():
+    while True:
+        tarea = cola.get()
+        if tarea is None:   # forma limpia de salir si un día querés
+            break
+        accion, cam_id = tarea
+
+        if accion == "foto":
+            ph.hacer_foto(cam_id)
+
+        elif accion == "video":
+            vd.hacer_video(cam_id)
+
+        cola.task_done()
+
+# crear hilo al iniciar módulo
+hilo_cam = threading.Thread(target=worker_camara, daemon=True)
+hilo_cam.start()
+
 
 def main():
     instance = vlc.Instance()
@@ -55,18 +77,24 @@ def main():
                     print(f"🔧 Velocidad actual: {velocidad:.2f}x")
             # time.sleep(0.1)
 
-            if ((velocidad <= 0) and ( velocidad != ultima_velocidad)): # Si la velocidad es 0 y venia de estar en marcha se pausa
-                media_player.pause()
-                foto = ph.hacer_foto(0)
-                print("foto: ", foto)
-            else:
-                if ( velocidad != ultima_velocidad): #Si cambio pero la vel no es 0 lo pongo en marcha
+            if (velocidad != ultima_velocidad): # Si varia la velocidad
+                if (velocidad <= 0) or (ultima_velocidad <= 0):  #Si baja a 0 o viene de ser 0 quiero grabar o hacer foto
+                    # siempre que vaya a encolar un video o una foto limpiar backlog:
+                    while not cola.empty():
+                        try:
+                            cola.get_nowait()
+                        except:
+                            break
+                    if (ultima_velocidad <= 0): # Si venia de ser 0 grabo video
+                        media_player.play() #Vuelve a ponerse en marcha
+                        cola.put(("video",0))
+                        print("video pedido")
+                    else:                       #Significa que bajo a 0 pq entro al or
+                        media_player.pause()
+                        cola.put(("foto",0))
+                        print("foto pedida")
+                else: #Si varia pero no venia de ser 0, ni pasa a ser 0, sigue en marcha
                     media_player.play()
-                    if (ultima_velocidad <= 0): #solo quiero grabar si venia de estar en reposo
-                        #th.Thread(target=vd.hacer_video, args=(0), daemon=True).start()
-                        video = vd.hacer_video(0)
-                        print("video: ", video)
-
 
             ultima_velocidad = velocidad
             # state = player.get_state()
@@ -75,9 +103,9 @@ def main():
             #     player.play()
 
     except KeyboardInterrupt:
-        print("\n🛑 Reproducción detenida por el usuario.")
+        print("\n Reproducción detenida por el usuario.")
     except serial.SerialException:
-        print("\n⚠️ Error de conexión con Arduino.")
+        print("\n Error de conexión con Arduino.")
     finally:
         list_player.stop()
 
