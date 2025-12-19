@@ -17,19 +17,21 @@ class ArduinoReader:
     def cerrar(self):
         self.arduino.close()
 '''
-arduino = serial.Serial(port="COM5", baudrate=9600, timeout=1)
+arduino = serial.Serial(port="COM11", baudrate=9600, timeout=1)
 time.sleep(2)  # esperar a que Arduino reinicie
 
 def leer_arduino():
     while True:
-        line = arduino.readline().decode('utf-8', errors='ignore').strip()
-        
-        if line:  # si la línea no está vacía
-            try:
-                valor = int(line)
-                return valor
-            except ValueError:
-                print(f"⚠️ Dato inválido recibido: '{line}' (no es un entero)")
-        else:
-            # si está vacía, esperamos un poco y volvemos a intentar
-            time.sleep(0.01)
+        if arduino.in_waiting > 0:
+            line = arduino.readline().decode('utf-8', errors='ignore').strip()
+            print(line)
+            if line:  # si la línea no está vacía
+                try:
+                    valor = int(line)
+                    print(valor)
+                    return valor
+                except ValueError:
+                    print(f"⚠️ Dato inválido recibido: '{line}' (no es un entero)")
+            else:
+                # si está vacía, esperamos un poco y volvemos a intentar
+                time.sleep(0.01)

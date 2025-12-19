@@ -6,10 +6,14 @@ import HacerFoto as ph
 import HacerVideo as vd
 from queue import Queue
 import threading
+
 VIDEO_PATH = "carreteraLoop.mp4"
-PORT = "COM5"
-MIN_SPEED = 0.0
-MAX_SPEED = 5.0
+PORT = "COM11"
+MIN_SPEED = 1
+MAX_SPEED = 4.0
+
+MIN_ACELERATION = 0
+MAX_ACELERATION = 0.1
 
 def map_range(x, in_min, in_max, out_min, out_max):
     """Mapea un valor desde un rango a otro."""
@@ -71,31 +75,39 @@ def main():
         while True:
             valor = ArduinoReader.leer_arduino()
             if valor is not None:
-                velocidad = map_range(valor, 1, 100, MIN_SPEED, MAX_SPEED)
-                if (abs(velocidad - ultima_velocidad) > 0.05): #Solo cambia la velocidad del video
+                ac = map_range(valor, 1, 100, MIN_ACELERATION, MAX_ACELERATION)
+                if ac == 0:
+                    ac = -0.1
+                velocidad = float("{:.2f}".format(ultima_velocidad + ac))
+                if velocidad > MAX_SPEED:
+                    velocidad = MAX_SPEED
+                elif velocidad < MIN_SPEED:
+                    velocidad = MIN_SPEED
+                if (abs(velocidad - ultima_velocidad) >= 0.05): #Solo cambia la velocidad del video
                     media_player.set_rate(velocidad)
-                    print(f"🔧 Velocidad actual: {velocidad:.2f}x")
+                    print(f"🔧 Velocidad actual: {velocidad:.2f}x, {ac}")
             # time.sleep(0.1)
-
-            if (velocidad != ultima_velocidad): # Si varia la velocidad
-                if (velocidad <= 0) or (ultima_velocidad <= 0):  #Si baja a 0 o viene de ser 0 quiero grabar o hacer foto
+            print(velocidad)
+            
+            if (abs(velocidad - ultima_velocidad) > 0.01): # Si varia la velocidad
+                if (velocidad <= MIN_SPEED) or (ultima_velocidad <= MIN_SPEED):  #Si baja a 0 o viene de ser 0 quiero grabar o hacer foto
                     # siempre que vaya a encolar un video o una foto limpiar backlog:
                     while not cola.empty():
                         try:
                             cola.get_nowait()
                         except:
                             break
-                    if (ultima_velocidad <= 0): # Si venia de ser 0 grabo video
-                        media_player.play() #Vuelve a ponerse en marcha
+                    if (ultima_velocidad <= MIN_SPEED): # Si venia de ser MIN SPEED grabo video
+                        #media_player.play()             #Vuelve a ponerse en marcha
                         cola.put(("video",0))
                         print("video pedido")
                     else:                       #Significa que bajo a 0 pq entro al or
-                        media_player.pause()
+                        #media_player.pause()
                         cola.put(("foto",0))
                         print("foto pedida")
-                else: #Si varia pero no venia de ser 0, ni pasa a ser 0, sigue en marcha
-                    media_player.play()
-
+                #else: #Si varia pero no venia de ser 0, ni pasa a ser 0, sigue en marcha
+                #    media_player.play()
+            
             ultima_velocidad = velocidad
             # state = player.get_state()
             # if state == vlc.State.Ended:
